@@ -1,105 +1,130 @@
-module Parser where
+-- TODO special characters in print
+-- TODO fromScreen
+module Parser(
+    statements
+    , Var
+    , Val
+    , Op (..)
+    , Factor (..)
+    , Term (..)
+    , SubTerm (..)
+    , Expression (..)
+    , SubExpression (..)
+    , Statement (..)
+) where
 
-import Environment
 import Text.ParserCombinators.Parsec
+import Debug.Trace
 
-type Statements = [Statement]
+type Var = Char
+type Val = Char
 
 data Op = Mult | Div | Add | Sub
     deriving (Show)
-
-data Paren = Open | Close
+data Factor = Factor Expression | Var Var | Val Val
     deriving (Show)
-
-data Factor = EFactor Expression | RawVar Var | RawVal String
+data Term = Term Factor [SubTerm]
     deriving (Show)
-
-data Term = Term Factor Op Factor | TermS Factor
+data SubTerm = SubTerm Op Factor
     deriving (Show)
-
-data Expression = Expression Term Op Term | ExpressionS Term
+data Expression = Expression Term [SubExpression]
     deriving (Show)
-
-data Statement =
-      Assignment Var Expression
-    | Print Char Expression
-    | Get Char Var
+data SubExpression = SubExpression Op Term
+    deriving (Show)
+data Out = Expr Expression | Special Char
+    deriving (Show)
+data Statement = Assignment Var Expression | Print Out | Get Char Var
     deriving (Show)
 
 --
 -- Main parsers
 --
-parseFactor :: Parser Factor
-parseFactor = parseParenFactor <|> parseRawVar <|> parseRawVal
+statements :: Parser [Statement]
+statements = do
+    ss <- many statement
+    char '$'
+    return ss
 
-parseTerm :: Parser Term
-parseTerm = parseTermT <|> parseTermS
+statement :: Parser Statement
+statement = toScreen <|> assignment
 
-parseExpression :: Parser Expression
-parseExpression = parseExpressionT <|> parseExpressionS
+factor :: Parser Factor
+factor = parenFactor <|> rawVar <|> rawVal
 
-parseAssignment :: Parser Statement
-parseAssignment = do
+assignment :: Parser Statement
+assignment = do
     var <- letter
     char '='
-    val <- parseExpression
+    val <- expression
+    char ';'
     return $ Assignment var val
 
+toScreen :: Parser Statement
+toScreen = do
+    char '<'
+    expr <- expression
+    char ';'
+    return $ Print $ Expr expr
+
 --
--- 'Low' Parsers
+-- Low Parsers
 --
-parseExpressionS :: Parser Expression
-parseExpressionS = do
-    t1 <- parseTerm
-    return $ ExpressionS t1
+expression :: Parser Expression
+expression = do
+    t1 <- term
+    s <- try $ many subExpression
+    return $ Expression t1 s
 
-parseExpressionT :: Parser Expression
-parseExpressionT = do
-    t1 <- parseTerm
-    op <- oneOf "+-"
-    t2 <- parseTerm
-    case op of
-        '+' -> return $ Expression t1 Add t2
-        '-' -> return $ Expression t1 Sub t2
+subExpression :: Parser SubExpression
+subExpression = do
+    op <- expressionOps
+    t <- term
+    return $ SubExpression (toOp op) t
 
-parseTermS :: Parser Term
-parseTermS = do
-    f1 <- parseFactor
-    return $ TermS f1
+term :: Parser Term
+term = do
+    f <- factor
+    sub <- try $ many subTerm
+    return $ Term f sub
 
-parseTermT :: Parser Term
-parseTermT = do
-    f1 <- parseFactor
-    op <- oneOf "*/"
-    f2 <- parseFactor
-    case op of
-        '*' -> return $ Term f1 Mult f2
-        '/' -> return $ Term f2 Div f2
+subTerm :: Parser SubTerm
+subTerm = do
+    op <- termOps
+    t <- factor
+    return $ SubTerm (toOp op) t
 
-parseOpenParen :: Parser Paren
-parseOpenParen = do
-    paren <- char '('
-    return Open
+parenFactor :: Parser Factor
+parenFactor = do
+    openParen
+    expr <- expression
+    closeParen
+    return $ Factor expr
 
-parseCloseParen :: Parser Paren
-parseCloseParen = do
-    paren <- char ')'
-    return Close
-
-parseParenFactor :: Parser Factor
-parseParenFactor = do
-    parseOpenParen
-    expr <- parseExpression
-    parseCloseParen
-    return $ EFactor expr
-
-parseRawVar :: Parser Factor
-parseRawVar = do
+rawVar :: Parser Factor
+rawVar = do
     var <- letter
-    return $ RawVar var
+    return $ Var var
 
-parseRawVal :: Parser Factor
-parseRawVal = do
-    val <- many digit
-    return $ RawVal val
+rawVal :: Parser Factor
+rawVal = do
+    val <- digit
+    return $ Val val
 
+openParen :: Parser Char
+openParen = char '('
+
+closeParen :: Parser Char
+closeParen = char ')'
+
+termOps :: Parser Char
+termOps = oneOf "*/"
+
+expressionOps :: Parser Char
+expressionOps = oneOf "+-"
+
+toOp :: Char -> Op
+toOp op = case op of
+    '+' -> Add
+    '-' -> Sub
+    '*' -> Mult
+    '/' -> Div
