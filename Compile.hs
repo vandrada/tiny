@@ -14,71 +14,80 @@ data Compiler = Compiler {
 compiler :: Compiler
 compiler = Compiler { code = "", address = 0, temp = 288 }
 
-statement :: Compiler -> Statement -> Compiler
-statement comp s =
+compile :: [Statement] -> Compiler
+compile = foldl compile' compiler
+
+compile' :: Compiler -> Statement -> Compiler
+compile' comp s =
     case s of
     Assignment var expr ->
         let comp' = expression comp expr in
-        comp' { code = code comp'                                    ++
+        comp' { code = code comp' ++
                printf "\n# M[%d] = M[%d]\n"
-                   (varToAddr var `div` 8) (address comp' `div` 8)   ++
-               printf "\tl.d    $f2, %d($s1)\n" (address comp')      ++
+                   (varToAddr var `div` 8) (address comp' `div` 8) ++
+               printf "\tl.d    $f2, %d($s1)\n" (address comp') ++
                printf "\ts.d    $f2, %d($s1)\n" (varToAddr var)
         }
     Print (Expr expr) ->
-        let out' = expression comp expr in
-        out' { code = code out'                                      ++
-               printf "\n# print value\n"                            ++
-               printf "\tli     $v0,  3\n"                           ++
-               printf "\tl.d    $f12, %d($s1)\n" (address out')      ++
+        let comp' = expression comp expr in
+        comp' { code = code comp' ++
+               printf "\n# print value\n" ++
+               printf "\tli     $v0,  3\n" ++
+               printf "\tl.d    $f12, %d($s1)\n" (address comp') ++
                printf "\tsyscall\n"
         }
     Print (Special sp) ->
-        comp { code = code comp                                      ++
-              "\n# Print special character\n"                        ++
-              "\tli     $v0, 4\n"                                    ++
-              fromSpecial sp                                         ++
+        comp { code = code comp ++
+              "\n# print special character\n" ++
+              "\tli     $v0, 4\n" ++
+              fromSpecial sp ++
               "\tsyscall\n"
         }
-    -- Get _ _ ->
+    Get var ->
+        comp { code = code comp ++
+               printf "\n# read M[%d] as double\n" (varToAddr var `div` 8) ++
+               printf "\tli     $v0, 7\n" ++
+               printf "\tsyscall\n" ++
+               printf "\ts.d    $f0, %d($s1)\n" (varToAddr var)
+        }
 
 factor :: Compiler -> Factor -> Compiler
-factor out f = case f of
-    Factor expr -> expression out expr
-    Var var -> out { address = varToAddr var }
-    Val val -> out { address = valToAddr val }
+factor comp f = case f of
+    Factor expr -> expression comp expr
+    Var var -> comp { address = varToAddr var }
+    Val val -> comp { address = valToAddr val }
 
 expression :: Compiler -> Expression -> Compiler
-expression out expr = case expr of
-    Expression t [] -> term out t
-    Expression t subs -> let out' = term out t
+expression comp expr = case expr of
+    Expression t [] -> term comp t
+    Expression t subs -> let out' = term comp t
                          in foldl subExpression out' subs
 
 subExpression :: Compiler -> SubExpression -> Compiler
-subExpression out (SubExpression op t) =
-    let out' = term out t in
-    updateCompiler out out' op
+subExpression comp (SubExpression op t) =
+    let comp' = term comp t in
+    updateCompiler comp comp' op
 
 term :: Compiler -> Term -> Compiler
-term out t = case t of
-    Term f []   -> factor out f
-    Term f subs -> let out' = factor out f
-                   in foldl subTerm out' subs
+term comp t = case t of
+    Term f []   -> factor comp f
+    Term f subs -> let comp' = factor comp f
+                   in foldl subTerm comp' subs
 
 subTerm :: Compiler -> SubTerm -> Compiler
-subTerm out (SubTerm op f) =
-    let out' = factor out f in
-    updateCompiler out out' op
+subTerm comp (SubTerm op f) =
+    let comp' = factor comp f in
+    updateCompiler comp comp' op
 
 updateCompiler :: Compiler -> Compiler -> Op -> Compiler
 updateCompiler old new op =
-    new { code = code old                                   ++
+    new { code = code old ++
           printf "\n# M[%d] = M[%d] %c M[%d]\n"
             (temp old `div` 8) (address old `div` 8)
-            (opToChar op) (address new `div` 8)             ++
-          printf "\tl.d    $f2, %d($s1)\n" (address old)    ++
-          printf "\tl.d    $f4, %d($s1)\n" (address new)    ++
-          fromOp op                                         ++
+            (opToChar op) (address new `div` 8) ++
+          printf "\tl.d    $f2, %d($s1)\n" (address old) ++
+          printf "\tl.d    $f4, %d($s1)\n" (address new) ++
+          fromOp op ++
           printf "\ts.d    $f6, %d($s1)\n" (temp new)
           , temp = nextTemp $ temp old
           , address = temp new
@@ -104,33 +113,38 @@ fromSpecial N = "\tla     $a0, NewL\n"
 fromSpecial B = "\tla     $a0, Blank\n"
 fromSpecial T = "\tla     $a0, Tab\n"
 
+-- | Turn a raw value such as '7' into a memory address
 valToAddr :: Char -> Int
 valToAddr num = (ord num - ord '0') * 8
 
+-- | Turn a variable such as 'a' into a memory address
 varToAddr :: Char -> Int
 varToAddr var = (ord var - ord 'a' + 10) * 8
 
+-- | Retrieve the next temporary address
 nextTemp :: Int -> Int
 nextTemp cur = cur + 8
 
+-- | Stuff before the compiled code
 preamble :: String
 preamble =
-    "# preamble\n"                              ++
-    "# code compiled from a Tiny(r) program"    ++
-    "main:   addu   $s7, $ra, $zero\n"          ++
+    "# preamble\n" ++
+    "# code compiled from a Tiny(r) program\n" ++
+    "main:   addu   $s7, $ra, $zero\n" ++
     "        la     $s1, M"
 
+-- | Stuff after the compiled code
 postamble :: String
 postamble =
-    "# postamble\n"                                         ++
-    "\taddu     $ra, $s7, $zero\n"                          ++
-    "\tjr       $ra                     # ret to sys\n\n"   ++
-    "\t.data\n"                                             ++
-    "\t.align   3\n"                                        ++
-    "M:      .double  0.,1.,2.,3.,4.,5.\n"                  ++
-    "\t.double  6.,7.,8.,9.             # cons\n"           ++
-    "\t.space   208                     # a to z\n"         ++
-    "\t.space   1000                    # 125 temps\n"      ++
-    "Blank:  .asciiz \" \"\n"                               ++
-    "NewL:   .asciiz \"\\n\"\n"                             ++
+    "# postamble\n" ++
+    "\taddu     $ra, $s7, $zero\n" ++
+    "\tjr       $ra                     # ret to sys\n\n" ++
+    "\t.data\n" ++
+    "\t.align   3\n" ++
+    "M:      .double  0.,1.,2.,3.,4.,5.\n" ++
+    "\t.double  6.,7.,8.,9.             # cons\n" ++
+    "\t.space   208                     # a to z\n" ++
+    "\t.space   1000                    # 125 temps\n" ++
+    "Blank:  .asciiz \" \"\n" ++
+    "NewL:   .asciiz \"\\n\"\n" ++
     "Tab:    .asciiz \"\\t\"\n"

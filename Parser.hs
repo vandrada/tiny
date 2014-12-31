@@ -43,7 +43,7 @@ data SpecialChar = N | B | T
 data Out = Expr Expression | Special SpecialChar
     deriving (Show)
 
-data Statement = Assignment Var Expression | Print Out | Get Char Var
+data Statement = Assignment Var Expression | Print Out | Get Var
     deriving (Show)
 
 --
@@ -56,7 +56,7 @@ statements = do
     return ss
 
 statement :: Parser Statement
-statement = toScreen <|> assignment
+statement = toScreen <|> fromScreen <|> assignment
 
 assignment :: Parser Statement
 assignment = do
@@ -75,6 +75,13 @@ toScreen = try (do char '<'
                    expr <- expression
                    char ';'
                    return $ Print $ Expr expr)
+
+fromScreen :: Parser Statement
+fromScreen = do
+    char '>'
+    var <- letter
+    char ';'
+    return $ Get var
 
 --
 -- Low Parsers

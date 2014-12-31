@@ -11,7 +11,7 @@ main = do
     case parseFile program of
         Right ss -> do
             putStrLn preamble
-            putStrLn $ code $ foldl statement compiler ss
+            putStrLn $ code $ compile ss
             putStrLn postamble
         Left err -> putStrLn err
 
