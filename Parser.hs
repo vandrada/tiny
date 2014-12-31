@@ -1,4 +1,5 @@
--- TODO fromScreen
+-- TODO while
+-- TODO for
 module Parser(
     statements
     , Var
@@ -8,6 +9,7 @@ module Parser(
     , SpecialChar (..)
     , Out (..)
     , Term (..)
+    , If (..)
     , SubTerm (..)
     , Expression (..)
     , SubExpression (..)
@@ -43,7 +45,12 @@ data SpecialChar = N | B | T
 data Out = Expr Expression | Special SpecialChar
     deriving (Show)
 
-data Statement = Assignment Var Expression | Print Out | Get Var | Terminate
+data If = IfThen Expression [Statement]
+         | IfThenElse Expression [Statement] [Statement]
+    deriving (Show)
+
+data Statement = Assignment Var Expression | Print Out | Get Var | Cond If
+                | Terminate
     deriving (Show)
 
 --
@@ -53,7 +60,7 @@ statements :: Parser [Statement]
 statements = many statement
 
 statement :: Parser Statement
-statement = toScreen <|> fromScreen <|> assignment <|> terminate
+statement = toScreen <|> fromScreen <|> assignment <|> terminate <|> cond
 
 assignment :: Parser Statement
 assignment = do
@@ -85,9 +92,34 @@ fromScreen = do
     char ';'
     return $ Get var
 
+cond :: Parser Statement
+cond = do
+    ifThen <- try ifThenElse <|> try ifThen
+    return $ Cond ifThen
+
 --
 -- Low Parsers
 --
+ifThen :: Parser If
+ifThen = do
+    char '['
+    expr <- expression
+    char '?'
+    ss <- statements
+    char ']'
+    return $ IfThen expr ss
+
+ifThenElse :: Parser If
+ifThenElse = do
+    char '['
+    expr <- expression
+    char '?'
+    ss <- statements
+    char ':'
+    ss' <- statements
+    char ']'
+    return $ IfThenElse expr ss ss'
+
 factor :: Parser Factor
 factor = parenFactor <|> rawVar <|> rawVal
 
@@ -132,6 +164,7 @@ rawVal = do
     val <- digit
     return $ Val val
 
+special :: Parser Char
 special = char 'N' <|> char 'B' <|> char 'T'
 
 openParen :: Parser Char

@@ -14,15 +14,14 @@ compile :: [Statement] -> Compiler
 compile = foldl compile' Compiler { code = preamble, address = 0, temp = 288}
 
 compile' :: Compiler -> Statement -> Compiler
-compile' comp s =
-    case s of
+compile' comp s = case s of
     Assignment var expr ->
         let comp' = expression comp expr in
         comp' { code = code comp' ++ unlines [
-                 printf "# M[%d] = M[%d]"
+                  printf "# M[%d] = M[%d]"
                    (varToAddr var `div` 8) (address comp' `div` 8)
-               , printf "\tl.d    $f2, %d($s1)" (address comp')
-               , printf "\ts.d    $f2, %d($s1)\n" (varToAddr var)]
+                , printf "\tl.d    $f2, %d($s1)" (address comp')
+                , printf "\ts.d    $f2, %d($s1)\n" (varToAddr var)]
         }
     Print (Expr expr) ->
         let comp' = expression comp expr in
@@ -46,7 +45,9 @@ compile' comp s =
                , printf "\tsyscall"
                , printf "\ts.d    $f0, %d($s1)\n" (varToAddr var)]
         }
-    Terminate -> comp { code = code comp ++ postamble}
+    Terminate -> comp { code = code comp ++ postamble }
+    Cond (IfThen expr ss) -> comp { code = code comp ++ "if" }
+    Cond (IfThenElse expr ss ss') -> comp { code = code comp ++ "if then"}
 
 factor :: Compiler -> Factor -> Compiler
 factor comp f = case f of
