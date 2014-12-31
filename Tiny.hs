@@ -21,4 +21,4 @@ parseFile file = case parse statements "" file of
     Left e -> Left $ "Error: " ++ show e
 
 getLines :: FilePath -> IO String
-getLines file = concat . lines <$> readFile file
+getLines file = concat . lines . filter (/= ' ') <$> readFile file
