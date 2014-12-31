@@ -10,31 +10,36 @@ data Compiler = Compiler {
     temp    :: Int      -- the current temp address
 } deriving (Show)
 
+-- | the default compiler
 compiler :: Compiler
 compiler = Compiler { code = "", address = 0, temp = 288 }
 
 statement :: Compiler -> Statement -> Compiler
-statement out s =
+statement comp s =
     case s of
     Assignment var expr ->
-        let out' = expression out expr in
-        out' { code = code out'                                     ++
+        let comp' = expression comp expr in
+        comp' { code = code comp'                                    ++
                printf "\n# M[%d] = M[%d]\n"
-                   (varToAddr var `div` 8) (address out' `div` 8)     ++
-               printf "\tl.d    $f2, %d($s1)\n" (address out')      ++
-               printf "\ts.d    $f2, %d($s1)\n" (varToAddr var),
-               address = address out',
-               temp = temp out'
-             }
+                   (varToAddr var `div` 8) (address comp' `div` 8)   ++
+               printf "\tl.d    $f2, %d($s1)\n" (address comp')      ++
+               printf "\ts.d    $f2, %d($s1)\n" (varToAddr var)
+        }
     Print (Expr expr) ->
-        let out' = expression out expr in
-        out' { code = code out'                                 ++
-               printf "\n# print value\n"                         ++
-               printf "\tli     $v0,  3\n"                      ++
-               printf "\tl.d    $f12, %d($s1)\n" (address out') ++
+        let out' = expression comp expr in
+        out' { code = code out'                                      ++
+               printf "\n# print value\n"                            ++
+               printf "\tli     $v0,  3\n"                           ++
+               printf "\tl.d    $f12, %d($s1)\n" (address out')      ++
                printf "\tsyscall\n"
-             }
-    -- Print (Special _) ->
+        }
+    Print (Special sp) ->
+        comp { code = code comp                                      ++
+              "\n# Print special character\n"                        ++
+              "\tli     $v0, 4\n"                                    ++
+              fromSpecial sp                                         ++
+              "\tsyscall\n"
+        }
     -- Get _ _ ->
 
 factor :: Compiler -> Factor -> Compiler
@@ -75,21 +80,29 @@ updateCompiler old new op =
           printf "\tl.d    $f4, %d($s1)\n" (address new)    ++
           fromOp op                                         ++
           printf "\ts.d    $f6, %d($s1)\n" (temp new)
-          , temp = temp old + 8
+          , temp = nextTemp $ temp old
           , address = temp new
         }
 
+-- | Converts an Op to an instruction
 fromOp :: Op -> String
 fromOp Add  = "\tadd.d  $f6, $f2, $f4\n"
 fromOp Sub  = "\tsub.d  $f6, $f2, $f4\n"
 fromOp Mult = "\tmul.d  $f6, $f2, $f4\n"
 fromOp Div  = "\tdiv.d  $f6, $f2, $f4\n"
 
+-- | Converts an Op to a char
 opToChar :: Op -> Char
 opToChar Add  = '+'
 opToChar Sub  = '-'
 opToChar Mult = '*'
 opToChar Div  = '/'
+
+-- | Converts a SpecialChar to an instruction
+fromSpecial :: SpecialChar -> String
+fromSpecial N = "\tla     $a0, NewL\n"
+fromSpecial B = "\tla     $a0, Blank\n"
+fromSpecial T = "\tla     $a0, Tab\n"
 
 valToAddr :: Char -> Int
 valToAddr num = (ord num - ord '0') * 8
@@ -102,8 +115,9 @@ nextTemp cur = cur + 8
 
 preamble :: String
 preamble =
-    "# preamble\n"                       ++
-    "main:   addu   $s7, $ra, $zero\n"   ++
+    "# preamble\n"                              ++
+    "# code compiled from a Tiny(r) program"    ++
+    "main:   addu   $s7, $ra, $zero\n"          ++
     "        la     $s1, M"
 
 postamble :: String
