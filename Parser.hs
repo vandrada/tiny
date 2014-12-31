@@ -94,7 +94,7 @@ fromScreen = do
 
 cond :: Parser Statement
 cond = do
-    ifThen <- try ifThenElse <|> try ifThen
+    ifThen <- try ifThen <|> try ifThenElse
     return $ Cond ifThen
 
 --

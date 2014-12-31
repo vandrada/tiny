@@ -48,27 +48,20 @@ compile' comp s = case s of
                , printf "\ts.d    $f0, %d($s1)\n" (varToAddr var)]
         }
     Cond (IfThen expr ss) ->
-        let comp' = expression comp {
-            code = code comp ++ printf "IfStart%d:\n" (label comp)
-        } expr in
-        let comp'' = comp' { code = code comp' ++ unlines [
-                  printf "\tl.d    $f2, %d($s1)" (address comp')
-                , printf "\tl.d    $f4, 0($s1)"
-                , printf "\tc.eq.d $f2, $f4"
-                , printf "\tbc1t   Else%d\n" (label comp')
-                ]
-        } in
-        let comp''' = foldl compile' comp'' ss in
-        comp''' { code = code comp''' ++ unlines [
-                    printf "\tj      IfEnd%d\n" (label comp''')
-                  , printf "Else%d:" (label comp''')
-                  , printf "\nIfEnd%d:\n" (label comp''')
-                  ]
-                  , label = nextLabel $ label comp'''
-        }
+        compileIfEnd
+        . compileElseLabel
+        . compileJump
+        . (\c -> foldl compile' c ss)
+        . compileElseStart
+        . compileThen $ expression (compileIfStart comp) expr
     Cond (IfThenElse expr ss ss') ->
-        let comp' = expression comp { code = code comp ++ "IfStart"} expr in
-        comp' { label = nextLabel $ label comp' }
+        compileIfEnd
+        . (\c -> foldl compile' c ss')
+        . compileElseLabel
+        . compileJump
+        . (\c -> foldl compile' c ss)
+        . compileElseStart
+        . compileThen $ expression (compileIfStart comp) expr
     Terminate -> comp { code = code comp ++ postamble }
 
 factor :: Compiler -> Factor -> Compiler
@@ -114,6 +107,41 @@ updateCompiler old new op =
           , temp = nextTemp $ temp old
           , address = temp new
         }
+
+-- | Inserts the If label
+compileIfStart :: Compiler -> Compiler
+compileIfStart comp =
+    comp { code = code comp ++ printf "IfStart%d:\n" (label comp) }
+
+-- | Compiles the Then part
+compileThen :: Compiler -> Compiler
+compileThen comp =
+    comp { code = code comp ++ unlines [
+             printf "\tl.d    $f2, %d($s1)" (address comp)
+           , printf "\tl.d    $f4, 0($s1)"
+           , printf "\tc.eq.d $f2, $f4"
+    ]}
+
+-- | The jump
+compileJump :: Compiler -> Compiler
+compileJump comp =
+    comp { code = code comp ++ printf "\tj      IfEnd%d\n\n" (label comp) }
+
+-- | The Else part
+compileElseStart :: Compiler -> Compiler
+compileElseStart comp =
+    comp { code = code comp ++ printf "\tbc1t   Else%d\n\n" (label comp) }
+
+-- | The Else label
+compileElseLabel :: Compiler -> Compiler
+compileElseLabel comp =
+    comp { code = code comp ++ printf "Else%d:\n" (label comp) }
+
+-- | The Ending labels
+compileIfEnd :: Compiler -> Compiler
+compileIfEnd comp =
+    comp { code = code comp ++ printf "IfEnd%d:\n" (label comp)
+         , label = nextLabel $ label comp }
 
 -- | Converts an Op to an instruction
 fromOp :: Op -> String
