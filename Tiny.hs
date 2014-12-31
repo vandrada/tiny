@@ -10,9 +10,10 @@ main = do
     program <- getLines file
     case parseFile program of
         Right ss -> do
-            putStrLn preamble
-            putStrLn $ concatMap statement ss
-            putStrLn postamble
+            --putStrLn preamble
+            print ss
+            putStrLn $ code $ foldl statement initialBuffer ss
+            --putStrLn postamble
         Left err -> putStrLn err
 
 parseFile :: String -> Either String [Statement]
