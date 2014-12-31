@@ -43,20 +43,17 @@ data SpecialChar = N | B | T
 data Out = Expr Expression | Special SpecialChar
     deriving (Show)
 
-data Statement = Assignment Var Expression | Print Out | Get Var
+data Statement = Assignment Var Expression | Print Out | Get Var | Terminate
     deriving (Show)
 
 --
 -- Main parsers
 --
 statements :: Parser [Statement]
-statements = do
-    ss <- many statement
-    char '$'
-    return ss
+statements = many statement
 
 statement :: Parser Statement
-statement = toScreen <|> fromScreen <|> assignment
+statement = toScreen <|> fromScreen <|> assignment <|> terminate
 
 assignment :: Parser Statement
 assignment = do
@@ -65,6 +62,11 @@ assignment = do
     val <- expression
     char ';'
     return $ Assignment var val
+
+terminate :: Parser Statement
+terminate = do
+    char '$'
+    return Terminate
 
 toScreen :: Parser Statement
 toScreen = try (do char '<'

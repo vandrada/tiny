@@ -9,10 +9,7 @@ main = do
     (file:_) <- getArgs
     program <- getLines file
     case parseFile program of
-        Right ss -> do
-            putStrLn preamble
-            putStrLn $ code $ compile ss
-            putStrLn postamble
+        Right ss -> putStr $ code $ compile ss
         Left err -> putStrLn err
 
 parseFile :: String -> Either String [Statement]
