@@ -4,15 +4,15 @@ import Parser
 import Data.Char (ord)
 import Text.Printf (printf)
 
-data Output = Output {
+data Compiler = Compiler {
     code    :: String,  -- the compiled code
     address :: Int,     -- an address returned by factor, expression, or term
     temp    :: Int      -- the current temp address
 } deriving (Show)
 
-initialBuffer = Output { code = "", address = 0, temp = 288 }
+initialBuffer = Compiler { code = "", address = 0, temp = 288 }
 
-statement :: Output -> Statement -> Output
+statement :: Compiler -> Statement -> Compiler
 statement out s =
     case s of
     Assignment var expr ->
@@ -21,13 +21,13 @@ statement out s =
                printf "\n# M[%d] = M[%d]\n"
                  (varToAddr var `div` 8) (address out' `div` 8)     ++
                printf "\tl.d    $f2, %d($s1)\n" (address out')      ++
-               printf "\ts.d    $f2, %d($s1)\n\n" (varToAddr var),
+               printf "\ts.d    $f2, %d($s1)\n" (varToAddr var),
                address = address out',
                temp = temp out'
              }
     Print _ -> out {code = code out ++ "Print"}
 
-factor :: Output -> Factor -> Output
+factor :: Compiler -> Factor -> Compiler
 factor out f = case f of
     -- paren
     --Factor expr ->
@@ -36,30 +36,30 @@ factor out f = case f of
     Var var -> out { address = varToAddr var }
     Val val -> out { address = valToAddr val }
 
-expression :: Output -> Expression -> Output
+expression :: Compiler -> Expression -> Compiler
 expression out exp = case exp of
     Expression t [] -> term out t
     Expression t subs -> let out' = term out t
                          in foldl subExpression out' subs
 
-subExpression :: Output -> SubExpression -> Output
+subExpression :: Compiler -> SubExpression -> Compiler
 subExpression out (SubExpression op t) =
     let out' = term out t in
-    updateOutput out out' op
+    updateCompiler out out' op
 
-term :: Output -> Term -> Output
+term :: Compiler -> Term -> Compiler
 term out t = case t of
     Term f []   -> factor out f
     Term f subs -> let out' = factor out f
                    in foldl subTerm out' subs
 
-subTerm :: Output -> SubTerm -> Output
+subTerm :: Compiler -> SubTerm -> Compiler
 subTerm out (SubTerm op f) =
     let out' = factor out f in
-    updateOutput out out' op
+    updateCompiler out out' op
 
-updateOutput :: Output -> Output -> Op -> Output
-updateOutput old new op =
+updateCompiler :: Compiler -> Compiler -> Op -> Compiler
+updateCompiler old new op =
     new { code = code old                                   ++
           printf "\n# M[%d] = M[%d] %c M[%d]\n"
             (temp old `div` 8) (address old `div` 8)
@@ -67,7 +67,7 @@ updateOutput old new op =
           printf "\tl.d    $f2, %d($s1)\n" (address old)    ++
           printf "\tl.d    $f4, %d($s1)\n" (address new)    ++
           fromOp op                                         ++
-          printf "\ts.d    $f6, %d($s1)\n\n" (temp new)
+          printf "\ts.d    $f6, %d($s1)\n" (temp new)
           , temp = temp old + 8
           , address = temp new
         }
@@ -79,10 +79,10 @@ fromOp Mult = "\tmul.d  $f6, $f2, $f4\n"
 fromOp Div  = "\tdiv.d  $f6, $f2, $f4\n"
 
 opToChar :: Op -> Char
-opToChar Add = '+'
-opToChar Sub = '-'
+opToChar Add  = '+'
+opToChar Sub  = '-'
 opToChar Mult = '*'
-opToChar Div = '/'
+opToChar Div  = '/'
 
 valToAddr :: Char -> Int
 valToAddr num = (ord num - ord '0') * 8
@@ -97,7 +97,7 @@ preamble :: String
 preamble =
     "# preamble\n"                       ++
     "main:   addu   $s7, $ra, $zero\n"   ++
-    "        la     $s1, M\n"
+    "        la     $s1, M"
 
 postamble :: String
 postamble =
