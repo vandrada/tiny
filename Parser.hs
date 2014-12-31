@@ -1,4 +1,3 @@
--- TODO special characters in print
 -- TODO fromScreen
 module Parser(
     statements
@@ -6,6 +5,7 @@ module Parser(
     , Val
     , Op (..)
     , Factor (..)
+    , SpecialChar (..)
     , Out (..)
     , Term (..)
     , SubTerm (..)
@@ -21,18 +21,28 @@ type Val = Char
 
 data Op = Mult | Div | Add | Sub
     deriving (Show)
+
 data Factor = Factor Expression | Var Var | Val Val
     deriving (Show)
+
 data Term = Term Factor [SubTerm]
     deriving (Show)
+
 data SubTerm = SubTerm Op Factor
     deriving (Show)
+
 data Expression = Expression Term [SubExpression]
     deriving (Show)
+
 data SubExpression = SubExpression Op Term
     deriving (Show)
-data Out = Expr Expression | Special Char
+
+data SpecialChar = N | B | T
     deriving (Show)
+
+data Out = Expr Expression | Special SpecialChar
+    deriving (Show)
+
 data Statement = Assignment Var Expression | Print Out | Get Char Var
     deriving (Show)
 
@@ -57,11 +67,14 @@ assignment = do
     return $ Assignment var val
 
 toScreen :: Parser Statement
-toScreen = do
-    char '<'
-    expr <- expression
-    char ';'
-    return $ Print $ Expr expr
+toScreen = try (do char '<'
+                   sp <- special
+                   char ';'
+                   return $ Print $ Special $ toSpecial sp)
+       <|> try (do char '<'
+                   expr <- expression
+                   char ';'
+                   return $ Print $ Expr expr)
 
 --
 -- Low Parsers
@@ -110,6 +123,8 @@ rawVal = do
     val <- digit
     return $ Val val
 
+special = char 'N' <|> char 'B' <|> char 'T'
+
 openParen :: Parser Char
 openParen = char '('
 
@@ -123,8 +138,12 @@ expressionOps :: Parser Char
 expressionOps = oneOf "+-"
 
 toOp :: Char -> Op
-toOp op = case op of
-    '+' -> Add
-    '-' -> Sub
-    '*' -> Mult
-    '/' -> Div
+toOp '+' = Add
+toOp '-' = Sub
+toOp '*' = Mult
+toOp '/' = Div
+
+toSpecial :: Char -> SpecialChar
+toSpecial 'N' = N
+toSpecial 'B' = B
+toSpecial 'T' = T
