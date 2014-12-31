@@ -49,8 +49,11 @@ data If = IfThen Expression [Statement]
          | IfThenElse Expression [Statement] [Statement]
     deriving (Show)
 
+data While = While Expression [Statement]
+    deriving (Show)
+
 data Statement = Assignment Var Expression | Print Out | Get Var | Cond If
-                | Terminate
+                | Loop While | Terminate
     deriving (Show)
 
 --
@@ -60,7 +63,8 @@ statements :: Parser [Statement]
 statements = many statement
 
 statement :: Parser Statement
-statement = toScreen <|> fromScreen <|> assignment <|> terminate <|> cond
+statement = toScreen <|> fromScreen <|> assignment
+            <|> terminate <|> cond <|> loop
 
 assignment :: Parser Statement
 assignment = do
@@ -97,9 +101,23 @@ cond = do
     ifThen <- try ifThen <|> try ifThenElse
     return $ Cond ifThen
 
+loop :: Parser Statement
+loop = do
+    w <- while
+    return $ Loop w
+
 --
 -- Low Parsers
 --
+while :: Parser While
+while = do
+    char '{'
+    expr <- expression
+    char '?'
+    ss <- statements
+    char '}'
+    return $ While expr ss
+
 ifThen :: Parser If
 ifThen = do
     char '['

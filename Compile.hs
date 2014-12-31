@@ -12,11 +12,11 @@ data Compiler = Compiler {
 } deriving (Show)
 
 compile :: [Statement] -> Compiler
-compile = foldl compile' Compiler { code = preamble, address = 0,
-                                    temp = 288, label = 0}
+compile = foldl compileStatement Compiler { code = preamble, address = 0
+                                            , temp = 288, label = 0}
 
-compile' :: Compiler -> Statement -> Compiler
-compile' comp s = case s of
+compileStatement :: Compiler -> Statement -> Compiler
+compileStatement comp s = case s of
     Assignment var expr ->
         let comp' = expression comp expr in
         comp' { code = code comp' ++ unlines [
@@ -51,16 +51,16 @@ compile' comp s = case s of
         compileIfEnd
         . compileElseLabel
         . compileJump
-        . (\c -> foldl compile' c ss)
-        . compileElseStart
+        . (\c -> foldl compileStatement c ss)
+        . compileElseJump
         . compileThen $ expression (compileIfStart comp) expr
     Cond (IfThenElse expr ss ss') ->
         compileIfEnd
-        . (\c -> foldl compile' c ss')
+        . (\c -> foldl compileStatement c ss')
         . compileElseLabel
         . compileJump
-        . (\c -> foldl compile' c ss)
-        . compileElseStart
+        . (\c -> foldl compileStatement c ss)
+        . compileElseJump
         . compileThen $ expression (compileIfStart comp) expr
     Terminate -> comp { code = code comp ++ postamble }
 
@@ -122,15 +122,15 @@ compileThen comp =
            , printf "\tc.eq.d $f2, $f4"
     ]}
 
+-- | The Else part
+compileElseJump :: Compiler -> Compiler
+compileElseJump comp =
+    comp { code = code comp ++ printf "\tbc1t   Else%d\n\n" (label comp) }
+
 -- | The jump
 compileJump :: Compiler -> Compiler
 compileJump comp =
     comp { code = code comp ++ printf "\tj      IfEnd%d\n\n" (label comp) }
-
--- | The Else part
-compileElseStart :: Compiler -> Compiler
-compileElseStart comp =
-    comp { code = code comp ++ printf "\tbc1t   Else%d\n\n" (label comp) }
 
 -- | The Else label
 compileElseLabel :: Compiler -> Compiler
