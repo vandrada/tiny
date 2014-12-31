@@ -3,7 +3,6 @@ module Compile where
 import Parser
 import Data.Char (ord)
 import Text.Printf (printf)
-import Debug.Trace
 
 data Output = Output {
     code    :: String,  -- the compiled code
@@ -18,15 +17,14 @@ statement out s =
     case s of
     Assignment var expr ->
         let out' = expression out expr in
-        out { code = code out ++
-              printf "\nAssignment" ++
-              printf "\n# M[%d] = M[%d]\n"
-                (varToAddr var `div` 8) (address out' `div` 8) ++
-              printf "\tl.d    $f2, %d($s1)\n" (address out') ++
-              printf "\ts.d    $f2, %d($s1)\n\n" (varToAddr var),
-              address = address out',
-              temp = temp out'
-            }
+        out' { code = code out'                                     ++
+               printf "\n# M[%d] = M[%d]\n"
+                 (varToAddr var `div` 8) (address out' `div` 8)     ++
+               printf "\tl.d    $f2, %d($s1)\n" (address out')      ++
+               printf "\ts.d    $f2, %d($s1)\n\n" (varToAddr var),
+               address = address out',
+               temp = temp out'
+             }
     Print _ -> out {code = code out ++ "Print"}
 
 factor :: Output -> Factor -> Output
@@ -40,8 +38,7 @@ factor out f = case f of
 
 expression :: Output -> Expression -> Output
 expression out exp = case exp of
-    Expression t [] -> let (Output code' address' temp') = term out t
-                       in out { code = code out ++ code', address = address' }
+    Expression t [] -> term out t
     Expression t subs -> let out' = term out t
                          in foldl subExpression out' subs
 
@@ -50,11 +47,9 @@ subExpression out (SubExpression op t) =
     let out' = term out t in
     updateOutput out out' op
 
-
 term :: Output -> Term -> Output
 term out t = case t of
-    Term f []   -> let (Output _ address' _) = factor out f
-                   in out { address = address' }
+    Term f []   -> factor out f
     Term f subs -> let out' = factor out f
                    in foldl subTerm out' subs
 
@@ -75,7 +70,7 @@ updateOutput old new op =
           printf "\ts.d    $f6, %d($s1)\n\n" (temp new)
           , temp = temp old + 8
           , address = temp new
-       }
+        }
 
 fromOp :: Op -> String
 fromOp Add  = "\tadd.d  $f6, $f2, $f4\n"

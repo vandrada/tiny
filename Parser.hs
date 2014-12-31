@@ -14,7 +14,6 @@ module Parser(
 ) where
 
 import Text.ParserCombinators.Parsec
-import Debug.Trace
 
 type Var = Char
 type Val = Char
@@ -48,9 +47,6 @@ statements = do
 statement :: Parser Statement
 statement = toScreen <|> assignment
 
-factor :: Parser Factor
-factor = parenFactor <|> rawVar <|> rawVal
-
 assignment :: Parser Statement
 assignment = do
     var <- letter
@@ -69,6 +65,9 @@ toScreen = do
 --
 -- Low Parsers
 --
+factor :: Parser Factor
+factor = parenFactor <|> rawVar <|> rawVal
+
 expression :: Parser Expression
 expression = do
     t1 <- term

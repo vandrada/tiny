@@ -1,8 +1,8 @@
 import Parser
-import Text.ParserCombinators.Parsec
-import System.Environment
-import Control.Applicative
 import Compile
+import Text.ParserCombinators.Parsec (parse)
+import System.Environment (getArgs)
+import Control.Applicative ((<$>))
 
 main :: IO ()
 main = do
@@ -11,7 +11,6 @@ main = do
     case parseFile program of
         Right ss -> do
             --putStrLn preamble
-            print ss
             putStrLn $ code $ foldl statement initialBuffer ss
             --putStrLn postamble
         Left err -> putStrLn err
