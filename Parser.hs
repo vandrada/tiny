@@ -6,6 +6,7 @@ module Parser(
     , Val
     , Op (..)
     , Factor (..)
+    , Out (..)
     , Term (..)
     , SubTerm (..)
     , Expression (..)

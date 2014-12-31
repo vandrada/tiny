@@ -10,7 +10,8 @@ data Compiler = Compiler {
     temp    :: Int      -- the current temp address
 } deriving (Show)
 
-initialBuffer = Compiler { code = "", address = 0, temp = 288 }
+compiler :: Compiler
+compiler = Compiler { code = "", address = 0, temp = 288 }
 
 statement :: Compiler -> Statement -> Compiler
 statement out s =
@@ -19,25 +20,31 @@ statement out s =
         let out' = expression out expr in
         out' { code = code out'                                     ++
                printf "\n# M[%d] = M[%d]\n"
-                 (varToAddr var `div` 8) (address out' `div` 8)     ++
+                   (varToAddr var `div` 8) (address out' `div` 8)     ++
                printf "\tl.d    $f2, %d($s1)\n" (address out')      ++
                printf "\ts.d    $f2, %d($s1)\n" (varToAddr var),
                address = address out',
                temp = temp out'
              }
-    Print _ -> out {code = code out ++ "Print"}
+    Print (Expr expr) ->
+        let out' = expression out expr in
+        out' { code = code out'                                 ++
+               printf "\n# print value\n"                         ++
+               printf "\tli     $v0,  3\n"                      ++
+               printf "\tl.d    $f12, %d($s1)\n" (address out') ++
+               printf "\tsyscall\n"
+             }
+    -- Print (Special _) ->
+    -- Get _ _ ->
 
 factor :: Compiler -> Factor -> Compiler
 factor out f = case f of
-    -- paren
-    --Factor expr ->
-    --   let (_, addr) = expression expr
-    --  in addr
+    Factor expr -> expression out expr
     Var var -> out { address = varToAddr var }
     Val val -> out { address = valToAddr val }
 
 expression :: Compiler -> Expression -> Compiler
-expression out exp = case exp of
+expression out expr = case expr of
     Expression t [] -> term out t
     Expression t subs -> let out' = term out t
                          in foldl subExpression out' subs
