@@ -7,11 +7,13 @@ import Text.Printf (printf)
 data Compiler = Compiler {
     code    :: String,
     address :: Int,
-    temp    :: Int
+    temp    :: Int,
+    label   :: Int
 } deriving (Show)
 
 compile :: [Statement] -> Compiler
-compile = foldl compile' Compiler { code = preamble, address = 0, temp = 288}
+compile = foldl compile' Compiler { code = preamble, address = 0,
+                                    temp = 288, label = 0}
 
 compile' :: Compiler -> Statement -> Compiler
 compile' comp s = case s of
@@ -45,9 +47,29 @@ compile' comp s = case s of
                , printf "\tsyscall"
                , printf "\ts.d    $f0, %d($s1)\n" (varToAddr var)]
         }
+    Cond (IfThen expr ss) ->
+        let comp' = expression comp {
+            code = code comp ++ printf "IfStart%d:\n" (label comp)
+        } expr in
+        let comp'' = comp' { code = code comp' ++ unlines [
+                  printf "\tl.d    $f2, %d($s1)" (address comp')
+                , printf "\tl.d    $f4, 0($s1)"
+                , printf "\tc.eq.d $f2, $f4"
+                , printf "\tbc1t   Else%d\n" (label comp')
+                ]
+        } in
+        let comp''' = foldl compile' comp'' ss in
+        comp''' { code = code comp''' ++ unlines [
+                    printf "\tj      IfEnd%d\n" (label comp''')
+                  , printf "Else%d:" (label comp''')
+                  , printf "\nIfEnd%d:\n" (label comp''')
+                  ]
+                  , label = nextLabel $ label comp'''
+        }
+    Cond (IfThenElse expr ss ss') ->
+        let comp' = expression comp { code = code comp ++ "IfStart"} expr in
+        comp' { label = nextLabel $ label comp' }
     Terminate -> comp { code = code comp ++ postamble }
-    Cond (IfThen expr ss) -> comp { code = code comp ++ "if" }
-    Cond (IfThenElse expr ss ss') -> comp { code = code comp ++ "if then"}
 
 factor :: Compiler -> Factor -> Compiler
 factor comp f = case f of
@@ -124,6 +146,10 @@ varToAddr var = (ord var - ord 'a' + 10) * 8
 -- | Retrieve the next temporary address
 nextTemp :: Int -> Int
 nextTemp cur = cur + 8
+
+-- | Retrieve the next lable
+nextLabel :: Int -> Int
+nextLabel = succ
 
 -- | Stuff before the compiled code
 preamble :: String
