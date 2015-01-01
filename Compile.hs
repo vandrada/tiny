@@ -62,6 +62,10 @@ compileStatement comp s = case s of
         . (\c -> foldl compileStatement c ss)
         . compileElseJump
         . compileThen $ expression (compileIfStart comp) expr
+    Loop (While expr ss) ->
+        whileEnd
+        . (\c -> foldl compileStatement c ss)
+        . while $ expression (whileStart comp) expr
     Terminate -> comp { code = code comp ++ postamble }
 
 factor :: Compiler -> Factor -> Compiler
@@ -108,12 +112,36 @@ updateCompiler old new op =
           , address = temp new
         }
 
--- | Inserts the If label
+--
+-- While
+--
+whileStart :: Compiler -> Compiler
+whileStart comp =
+    comp { code = code comp ++ printf "WhileStart%d:\n" (label comp) }
+
+while :: Compiler -> Compiler
+while comp =
+    comp { code = code comp ++ unlines [
+             printf "\tl.d    $f2, %d($s1)" (address comp)
+           , printf "\tl.d    $f4, 0($s1)"
+           , printf "\tc.eq.d $f2, $f4"
+           , printf "\tbc1t   WhileEnd%d" (label comp)
+        ]}
+
+whileEnd :: Compiler -> Compiler
+whileEnd comp =
+    comp { code = code comp ++ unlines [
+             printf "\tj      WhileStart%d" (label comp)
+           , printf "\nWhileEnd%d:" (label comp)]
+           , label = nextLabel $ label comp
+    }
+--
+-- If
+--
 compileIfStart :: Compiler -> Compiler
 compileIfStart comp =
     comp { code = code comp ++ printf "IfStart%d:\n" (label comp) }
 
--- | Compiles the Then part
 compileThen :: Compiler -> Compiler
 compileThen comp =
     comp { code = code comp ++ unlines [
@@ -122,22 +150,18 @@ compileThen comp =
            , printf "\tc.eq.d $f2, $f4"
     ]}
 
--- | The Else part
 compileElseJump :: Compiler -> Compiler
 compileElseJump comp =
     comp { code = code comp ++ printf "\tbc1t   Else%d\n\n" (label comp) }
 
--- | The jump
 compileJump :: Compiler -> Compiler
 compileJump comp =
     comp { code = code comp ++ printf "\tj      IfEnd%d\n\n" (label comp) }
 
--- | The Else label
 compileElseLabel :: Compiler -> Compiler
 compileElseLabel comp =
     comp { code = code comp ++ printf "Else%d:\n" (label comp) }
 
--- | The Ending labels
 compileIfEnd :: Compiler -> Compiler
 compileIfEnd comp =
     comp { code = code comp ++ printf "IfEnd%d:\n" (label comp)

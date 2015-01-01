@@ -10,6 +10,7 @@ module Parser(
     , Out (..)
     , Term (..)
     , If (..)
+    , While (..)
     , SubTerm (..)
     , Expression (..)
     , SubExpression (..)
