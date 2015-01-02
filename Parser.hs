@@ -1,5 +1,3 @@
--- TODO while
--- TODO for
 module Parser(
     statements
     , Var

@@ -1,8 +1,8 @@
-import Parser
 import Compile
+import Control.Applicative           ((<$>))
+import Parser
+import System.Environment            (getArgs)
 import Text.ParserCombinators.Parsec (parse)
-import System.Environment (getArgs)
-import Control.Applicative ((<$>))
 
 main :: IO ()
 main = do

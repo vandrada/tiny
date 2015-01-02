@@ -1,15 +1,15 @@
 module Compile where
 
+import Data.Char   (ord)
 import Parser
-import Data.Char (ord)
 import Text.Printf (printf)
 
-data Compiler = Compiler {
-    compiled :: String,
-    address  :: Int,
-    temp     :: Int,
-    label    :: Int
-} deriving (Show)
+data Compiler = Compiler
+    { compiled :: String
+    , address  :: Int
+    , temp     :: Int
+    , label    :: Int
+    } deriving (Show)
 
 -- | Compiles multiple statements with the default compiler
 compile :: [Statement] -> Compiler
