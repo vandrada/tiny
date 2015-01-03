@@ -22,33 +22,33 @@ compileStatement comp s = case s of
     Assignment var expr ->
         let comp' = expression comp expr in
         comp' { compiled = compiled comp' ++ unlines [
-                  printf "# M[%d] = M[%d]"
+                printf "# M[%d] = M[%d]"
                    (varToAddr var `div` 8) (address comp' `div` 8)
                 , printf "\tl.d    $f2, %d($s1)" (address comp')
                 , printf "\ts.d    $f2, %d($s1)\n" (varToAddr var)]
-        }
+              }
     Print (Expr expr) ->
         let comp' = expression comp expr in
         comp' { compiled = compiled comp' ++ unlines [
-                  printf "# print value"
+                printf "# print value"
                 , printf "\tli     $v0,  3"
                 , printf "\tl.d    $f12, %d($s1)" (address comp')
                 , printf "\tsyscall\n"]
-        }
+              }
     Print (Special sp) ->
         comp { compiled = compiled comp ++ unlines [
-                 "# print special character"
+               "# print special character"
                , "\tli     $v0, 4"
                , fromSpecial sp
                , "\tsyscall\n"]
-        }
+             }
     Get var ->
         comp { compiled = compiled comp ++ unlines [
-                 printf "# read M[%d] as double" (varToAddr var `div` 8)
+               printf "# read M[%d] as double" (varToAddr var `div` 8)
                , printf "\tli     $v0, 7"
                , printf "\tsyscall"
                , printf "\ts.d    $f0, %d($s1)\n" (varToAddr var)]
-        }
+             }
     Cond (IfThen expr ss) ->
         ifEnd
         . jump
@@ -102,9 +102,8 @@ subTerm comp (SubTerm op f) =
 -- | Inserts code for Expression and Factors
 updateCompiler :: Compiler -> Compiler -> Op -> Compiler
 updateCompiler old new op =
-    new { compiled = compiled old ++
-          unlines [
-            printf "# M[%d] = M[%d] %c M[%d]"
+    new { compiled = compiled old ++ unlines [
+          printf "# M[%d] = M[%d] %c M[%d]"
                 (temp old `div` 8) (address old `div` 8)
                 (opToChar op) (address new `div` 8)
           , printf "\tl.d    $f2, %d($s1)" (address old)
@@ -126,33 +125,35 @@ start s comp =
 test :: String -> Compiler -> Compiler
 test s comp =
     comp { compiled = compiled comp ++ unlines [
-             printf "\tl.d    $f2, %d($s1)" (address comp)
+           printf "\tl.d    $f2, %d($s1)" (address comp)
            , printf "\tl.d    $f4, 0($s1)"
            , printf "\tc.eq.d $f2, $f4"
            , printf "\tbc1t   %s%d\n" s (label comp)
-    ]}
+        ]}
 
 -- | Ends the while loop
 whileEnd :: Compiler -> Compiler
 whileEnd comp =
     comp { compiled = compiled comp ++ unlines [
-             printf "\tj      WhileStart%d" (label comp)
+           printf "\tj      WhileStart%d" (label comp)
            , printf "\nWhileEnd%d:" (label comp)]
            , label = nextLabel $ label comp
-    }
+         }
 
 -- | Jump between the 'then' and 'else' statements
 jump :: Compiler -> Compiler
 jump comp =
     comp { compiled = compiled comp ++ unlines[
-             printf "\tj      IfEnd%d\n\n" (label comp)
-           , printf "Else%d:" (label comp)] }
+           printf "\tj      IfEnd%d\n\n" (label comp)
+           , printf "Else%d:" (label comp)]
+         }
 
 -- | Ends the if statement
 ifEnd :: Compiler -> Compiler
 ifEnd comp =
     comp { compiled = compiled comp ++ printf "IfEnd%d:\n" (label comp)
-         , label = nextLabel $ label comp }
+         , label = nextLabel $ label comp
+         }
 
 -- | Converts an Op to an instruction
 fromOp :: Op -> String
