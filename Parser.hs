@@ -111,8 +111,7 @@ loop = do
 while :: Parser While
 while = do
     char '{'
-    expr <- expression
-    char '?'
+    expr <- bool
     ss <- statements
     char '}'
     return $ While expr ss
@@ -120,8 +119,7 @@ while = do
 ifThen :: Parser If
 ifThen = do
     char '['
-    expr <- expression
-    char '?'
+    expr <- bool
     ss <- statements
     char ']'
     return $ IfThen expr ss
@@ -129,13 +127,18 @@ ifThen = do
 ifThenElse :: Parser If
 ifThenElse = do
     char '['
-    expr <- expression
-    char '?'
+    expr <- bool
     ss <- statements
     char ':'
     ss' <- statements
     char ']'
     return $ IfThenElse expr ss ss'
+
+bool :: Parser Expression
+bool = do
+    expr <- expression
+    char '?'
+    return expr
 
 factor :: Parser Factor
 factor = parenFactor <|> rawVar <|> rawVal
